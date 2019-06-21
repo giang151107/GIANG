@@ -1,0 +1,187 @@
+#include <WiFiManager.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <PubSubClient.h>
+#include <DoubleResetDetector.h>
+#include <Ticker.h>
+#define DRD_TIMEOUT 3
+#define DRD_ADDRESS 0
+DoubleResetDetector drd(DRD_TIMEOUT, DRD_ADDRESS);
+WiFiClient espClient;
+PubSubClient client(espClient);
+Ticker ticker;
+const char* mqtt_server = "postman.cloudmqtt.com";
+const long  mqtt_port= 16591;
+const char* mqtt_user = "prexsiac";
+const char* mqtt_pass = "Stu4JVNsn6r2";
+void tick()
+{
+  int state = digitalRead(2);  
+  digitalWrite(2, !state);     
+}
+void configModeCallback (WiFiManager *myWiFiManager)
+{
+  ticker.attach(0.2, tick);
+}
+void callback(char* topic, byte* payload, unsigned int length) 
+{
+if ((String)topic == "check")
+ {
+    Serial.print("check");
+ }
+if ((String)topic == "napthe")
+ {
+    Serial.print("napthe");
+ }
+if ((String)topic == "call")
+ {
+    Serial.print("call");
+ }
+if ((String)topic == "sim")
+ {
+  String buf;
+    for (int i = 0; i < length; i++) 
+    {
+    buf += (char)payload[i];
+    } 
+    if(buf.indexOf("sim1") != -1) Serial.print("sim1");
+    if(buf.indexOf("sim2") != -1) Serial.print("sim2");
+ } 
+if ((String)topic == "sothe")
+ {
+    String buf;
+    for (int i = 0; i < length; i++) 
+    {
+    buf += (char)payload[i];
+    }   
+    Serial.print(String("sothe______:")+buf);
+ }
+if ((String)topic == "call_number")
+ {
+    String buf;
+    for (int i = 0; i < length; i++) 
+    {
+    buf += (char)payload[i];
+    }   
+    Serial.print(String("call_number:")+buf);
+ }
+if ((String)topic == "call_time")
+ {
+    String buf;
+    for (int i = 0; i < length; i++) 
+    {
+    buf += (char)payload[i];
+    }   
+    Serial.print(String("call_time__:")+buf);
+ }
+if ((String)topic == "times")
+ {
+    String buf;
+    for (int i = 0; i < length; i++) 
+    {
+    buf += (char)payload[i];
+    }   
+    Serial.print(String("times______:")+buf);
+ }
+}
+void reconnect()
+{
+  while (!client.connected())
+  {
+    if (client.connect("ESP8266Client",mqtt_user,mqtt_pass))
+    {
+      client.publish("status", "online");
+      client.subscribe("check");
+      client.subscribe("sothe");
+      client.subscribe("napthe");
+      client.subscribe("call");
+      client.subscribe("call_number");
+      client.subscribe("call_time");
+      client.subscribe("times");
+      client.subscribe("sim");
+    }
+    else
+    {delay(5000);}
+  }
+}
+void setup() 
+{
+if (drd.detectDoubleReset()) 
+{
+  WiFi.disconnect();
+  ESP.restart();
+}
+Serial.begin(115200);
+pinMode(2, OUTPUT);
+ticker.attach(0.6, tick);
+WiFiManager wifiManager;
+wifiManager.setAPCallback(configModeCallback);
+wifiManager.autoConnect("JMI_ESP8266");
+ticker.detach();
+digitalWrite(2, LOW);
+ArduinoOTA.setHostname("JMI_ESP8266");
+ArduinoOTA.setPassword("jmi");
+ArduinoOTA.begin();
+client.setServer(mqtt_server,mqtt_port);
+client.setCallback(callback);
+Serial.print("check");
+}
+
+void loop() 
+{
+drd.loop();
+ArduinoOTA.handle();
+if (!client.connected())
+  {
+    reconnect();
+  }
+client.loop();
+while (Serial.available() > 0)
+  {
+  String chuoi = Serial.readString();
+  if(chuoi.indexOf("Sim1")!= -1)
+    {
+      String Sdt = chuoi, Stk = chuoi;
+      Sdt.remove(0,4);
+      Sdt.remove(11);
+      Stk.remove(0,25);
+      unsigned int len =  Sdt.length() + 1;
+      char datasent1[len];
+      Sdt.toCharArray(datasent1, len);
+      client.publish("sim1_number", datasent1);
+      len =  Stk.length() + 1;
+      char datasent2[len];
+      Stk.toCharArray(datasent2, len);
+      client.publish("sim1_tk", datasent2);
+    }
+   if(chuoi.indexOf("Sim2")!= -1)
+    {
+      String Sdt = chuoi, Stk = chuoi;
+      Sdt.remove(0,4);
+      Sdt.remove(11);
+      Stk.remove(0,25);
+      unsigned int len =  Sdt.length() + 1;
+      char datasent3[len];
+      Sdt.toCharArray(datasent3, len);
+      client.publish("sim2_number", datasent3);
+      len =  Stk.length() + 1;
+      char datasent4[len];
+      Stk.toCharArray(datasent4, len);
+      client.publish("sim2_tk", datasent4);
+    }
+    if(chuoi.indexOf("Call_done")!= -1)
+    {
+      client.publish("times", "0");
+    }
+    if(chuoi.indexOf("Da nap")!= -1)
+    {
+      client.publish("sothe", "1");
+    }
+    if(chuoi.indexOf("Ma sai")!= -1)
+    {
+      client.publish("sothe", "0");
+    }
+  }
+}
